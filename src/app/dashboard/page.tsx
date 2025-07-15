@@ -2,18 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, deleteDoc, doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LayoutDashboard, Briefcase, List, Settings, LogOut } from "lucide-react";
+import { UserCircle, LayoutDashboard, Briefcase, List, Settings, LogOut, Menu } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import useSWR, { mutate } from "swr";
+import { Bar, Pie, Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  PointElement, // <-- Add this line
+  LineElement,  // <-- Add this line for completeness
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
 // Add Transaction type
 interface Transaction {
@@ -42,6 +57,7 @@ export default function DashboardPage() {
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurring, setRecurring] = useState({ frequency: 'Monthly', endDate: '' });
+  const [showSidebar, setShowSidebar] = useState(false);
 
   const expenseCategories = [
     "Food",
@@ -96,6 +112,36 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [router]);
 
+  // Automate archive/delete at the start of each month using Firestore for lastResetMonth
+  useEffect(() => {
+    if (!user) return;
+    const checkAndResetMonth = async () => {
+      const now = new Date();
+      const currentMonth = now.toISOString().slice(0, 7); // 'YYYY-MM'
+      const userDocRef = doc(db, "users", user.uid);
+      let lastResetMonth = null;
+      try {
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          lastResetMonth = userDocSnap.data().lastResetMonth;
+        }
+      } catch (e) {
+        // If user doc doesn't exist, create it below
+      }
+      if (lastResetMonth !== currentMonth) {
+        await archiveAllTransactions();
+        // Only update the field if needed
+        try {
+          await setDoc(userDocRef, { lastResetMonth: currentMonth }, { merge: true });
+        } catch (e) {
+          // handle error
+        }
+      }
+    };
+    checkAndResetMonth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const handleMenuClick = (path: string) => {
     if (pathname !== path) router.push(path);
   };
@@ -142,6 +188,108 @@ export default function DashboardPage() {
     { expenses: 0, income: 0, balance: 0 }
   );
 
+  // Prepare data for the bar chart (monthly expenses by category)
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // 'YYYY-MM'
+  const expensesThisMonth = transactions.filter(
+    tx => tx.amount < 0 && tx.date && tx.date.startsWith(currentMonth)
+  );
+  const categoryTotals: Record<string, number> = {};
+  expensesThisMonth.forEach(tx => {
+    categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + Math.abs(tx.amount);
+  });
+  const chartData = {
+    labels: Object.keys(categoryTotals),
+    datasets: [
+      {
+        label: "Expenses (₹)",
+        data: Object.values(categoryTotals),
+        backgroundColor: "#ef4444",
+      },
+    ],
+  };
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: "Spending by Category (This Month)" },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: (tickValue: string | number) => `₹${tickValue}`,
+        },
+      },
+    },
+  };
+
+  // Pie chart data (category-wise expenses for current month)
+  const pieData = {
+    labels: Object.keys(categoryTotals),
+    datasets: [
+      {
+        label: "Expenses (₹)",
+        data: Object.values(categoryTotals),
+        backgroundColor: [
+          "#ef4444", "#f59e42", "#fbbf24", "#10b981", "#3b82f6", "#a78bfa", "#f472b6", "#6366f1"
+        ],
+      },
+    ],
+  };
+  // Weekly trends (last 8 weeks)
+  function getWeekStart(date: Date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay()); // Sunday as start
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  const weeks: string[] = [];
+  const weekTotals: Record<string, number> = {};
+  for (let i = 7; i >= 0; i--) {
+    const weekStart = getWeekStart(new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000));
+    const label = weekStart.toISOString().slice(0, 10);
+    weeks.push(label);
+    weekTotals[label] = 0;
+  }
+  transactions.forEach(tx => {
+    if (tx.amount < 0 && tx.date) {
+      const txDate = new Date(tx.date);
+      const weekStart = getWeekStart(txDate).toISOString().slice(0, 10);
+      if (weekTotals[weekStart] !== undefined) {
+        weekTotals[weekStart] += Math.abs(tx.amount);
+      }
+    }
+  });
+  const lineData = {
+    labels: weeks,
+    datasets: [
+      {
+        label: "Weekly Expenses (₹)",
+        data: weeks.map(w => weekTotals[w]),
+        borderColor: "#ef4444",
+        backgroundColor: "#fee2e2",
+        tension: 0.3,
+        fill: true,
+      },
+    ],
+  };
+  const lineOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: "Weekly Expense Trends (Last 8 Weeks)" },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: (tickValue: string | number) => `₹${tickValue}`,
+        },
+      },
+    },
+  };
+
   async function handleAddExpense() {
     if (!validateForm()) return;
     if (!user) return;
@@ -181,6 +329,33 @@ export default function DashboardPage() {
     }
   }
 
+  // Delete all transactions for the current user
+  async function deleteAllTransactions() {
+    if (!user) return;
+    const userTransactionsRef = collection(db, "users", user.uid, "transactions");
+    const querySnapshot = await getDocs(userTransactionsRef);
+    const batchDeletes = querySnapshot.docs.map((d) => deleteDoc(doc(db, "users", user.uid, "transactions", d.id)));
+    await Promise.all(batchDeletes);
+    mutate(["transactions", user.uid]); // Refresh SWR
+    alert("All transactions deleted.");
+  }
+
+  // Archive all transactions for the current user
+  async function archiveAllTransactions() {
+    if (!user) return;
+    const userTransactionsRef = collection(db, "users", user.uid, "transactions");
+    const archiveRef = collection(db, "users", user.uid, "archived_transactions");
+    const querySnapshot = await getDocs(userTransactionsRef);
+    // Copy each transaction to archive, then delete
+    const batchOps = querySnapshot.docs.map(async (d) => {
+      await addDoc(archiveRef, d.data());
+      await deleteDoc(doc(db, "users", user.uid, "transactions", d.id));
+    });
+    await Promise.all(batchOps);
+    mutate(["transactions", user.uid]); // Refresh SWR
+    alert("All transactions archived.");
+  }
+
   // Replace loading state
   if (!user || transactionsLoading) {
     return <div className="min-h-screen flex items-center justify-center text-lg">Loading dashboard...</div>;
@@ -192,6 +367,12 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-6 md:p-10">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
+        {/* Mobile Hamburger Icon */}
+        <div className="flex md:hidden justify-end mb-4">
+          <button onClick={() => setShowSidebar(true)} className="p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+            <Menu className="w-7 h-7" />
+          </button>
+        </div>
         {/* Main Content */}
         <div className="flex-1 flex flex-col gap-8">
           {/* Add Expense Button at the top */}
@@ -413,22 +594,40 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Chart Placeholder */}
+          {/* Chart Section */}
           <Card>
             <CardHeader>
               <CardTitle>Spending Overview</CardTitle>
-              <CardDescription>Chart coming soon</CardDescription>
+              <CardDescription>Monthly summary by category</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-40 flex items-center justify-center text-muted-foreground">
-                <span className="italic">[Chart Placeholder]</span>
+              <div className="h-64 flex items-center justify-center">
+                {Object.keys(categoryTotals).length > 0 ? (
+                  <Bar data={chartData} options={chartOptions} />
+                ) : (
+                  <span className="italic text-muted-foreground">No expenses for this month.</span>
+                )}
+              </div>
+              <div className="h-64 flex items-center justify-center mt-8">
+                {Object.keys(categoryTotals).length > 0 ? (
+                  <Pie data={pieData} />
+                ) : (
+                  <span className="italic text-muted-foreground">No category data for this month.</span>
+                )}
+              </div>
+              <div className="h-64 flex items-center justify-center mt-8">
+                {weeks.some(w => weekTotals[w] > 0) ? (
+                  <Line data={lineData} options={lineOptions} />
+                ) : (
+                  <span className="italic text-muted-foreground">No weekly trend data.</span>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
-        {/* Sidebar */}
-        <div className="w-full md:w-80 flex-shrink-0">
-          <Card className="h-full flex flex-col items-center py-8 gap-8 sticky top-6">
+        {/* Sidebar for desktop */}
+        <div className="hidden md:block w-full md:w-80 flex-shrink-0 mt-20">
+          <Card className="flex flex-col items-center py-8 gap-8 sticky top-6 min-h-[600px]">
             {/* Profile Picture */}
             <div className="flex flex-col items-center gap-2">
               <div className="rounded-full bg-zinc-300 dark:bg-zinc-700 w-20 h-20 flex items-center justify-center overflow-hidden">
@@ -451,6 +650,39 @@ export default function DashboardPage() {
             </nav>
           </Card>
         </div>
+        {/* Sidebar for mobile (slide-over) */}
+        {showSidebar && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex md:hidden" onClick={() => setShowSidebar(false)}>
+            <div className="bg-white dark:bg-zinc-900 w-72 max-w-full h-full shadow-lg p-6 flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <span className="font-bold text-lg">Menu</span>
+                <button onClick={() => setShowSidebar(false)} className="p-1 rounded focus:outline-none">
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+              {/* Profile Picture */}
+              <div className="flex flex-col items-center gap-2 mb-6">
+                <div className="rounded-full bg-zinc-300 dark:bg-zinc-700 w-16 h-16 flex items-center justify-center overflow-hidden">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-16 h-16 object-cover rounded-full" />
+                  ) : (
+                    <UserCircle className="w-12 h-12 text-zinc-500" />
+                  )}
+                </div>
+                <div className="font-semibold text-base mt-1">{user?.displayName || "User Name"}</div>
+                <div className="text-xs text-muted-foreground">{user?.email || "user@email.com"}</div>
+              </div>
+              {/* Menu */}
+              <nav className="w-full flex flex-col gap-2">
+                <SidebarMenuItem icon={<LayoutDashboard />} label="Dashboard" active={pathname === "/dashboard"} onClick={() => { handleMenuClick("/dashboard"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<Briefcase />} label="Portfolio" active={pathname === "/dashboard/portfolio"} onClick={() => { handleMenuClick("/dashboard/portfolio"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<List />} label="Transactions" active={pathname === "/dashboard/transactions"} onClick={() => { handleMenuClick("/dashboard/transactions"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<Settings />} label="Settings" active={pathname === "/dashboard/settings"} onClick={() => { handleMenuClick("/dashboard/settings"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<LogOut />} label="Logout" onClick={() => { handleLogout(); setShowSidebar(false); }} />
+              </nav>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
