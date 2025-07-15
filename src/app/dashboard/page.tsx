@@ -155,7 +155,11 @@ export default function DashboardPage() {
   function getDateString(offset: number) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    return d.toISOString().slice(0, 10);
+    // Format as YYYY-MM-DD in local time
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   const today = getDateString(0);
   const tomorrow = getDateString(1);
