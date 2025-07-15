@@ -15,13 +15,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import useSWR, { mutate } from "swr";
 
-// Firestore fetcher for SWR
-async function fetchTransactions(uid: string) {
-  if (!uid) return [];
-  const q = query(collection(db, "transactions"), where("uid", "==", uid));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+// Add Transaction type
+interface Transaction {
+  id: string;
+  category: string;
+  date: string;
+  amount: number;
+  [key: string]: any;
 }
+
+// Firestore fetcher for SWR
+const fetchTransactions: (uid: string) => Promise<Transaction[]> = async (uid) => {
+  if (!uid) return [];
+  const userTransactionsRef = collection(db, "users", uid, "transactions");
+  const querySnapshot = await getDocs(userTransactionsRef);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+};
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -34,13 +43,20 @@ export default function DashboardPage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurring, setRecurring] = useState({ frequency: 'Monthly', endDate: '' });
 
-  const defaultCategories = [
+  const expenseCategories = [
     "Food",
     "Transport",
     "Shopping",
     "Bills",
     "Entertainment",
     "Other",
+  ];
+  const incomeCategories = [
+    "Salary",
+    "Business",
+    "Investments",
+    "Gifts",
+    "Other Income",
   ];
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -56,9 +72,14 @@ export default function DashboardPage() {
     localStorage.setItem("customCategories", JSON.stringify(customCategories));
   }, [customCategories]);
 
+  // When switching entryType, reset category
+  useEffect(() => {
+    setForm(f => ({ ...f, category: "" }));
+  }, [entryType]);
+
   function handleAddCategory() {
     const cat = newCategory.trim();
-    if (!cat || defaultCategories.includes(cat) || customCategories.includes(cat)) return;
+    if (!cat || expenseCategories.includes(cat) || incomeCategories.includes(cat) || customCategories.includes(cat)) return;
     setCustomCategories([...customCategories, cat]);
     setNewCategory("");
     setShowAddCategory(false);
@@ -109,7 +130,7 @@ export default function DashboardPage() {
     data: transactions = [],
     error: transactionsError,
     isLoading: transactionsLoading,
-  } = useSWR(user ? ["transactions", user.uid] : null, () => fetchTransactions(user.uid));
+  } = useSWR<Transaction[]>(user ? ["transactions", user.uid] : null, () => fetchTransactions(user.uid));
 
   // Calculate summary from transactions
   const summary = transactions.reduce(
@@ -140,7 +161,7 @@ export default function DashboardPage() {
       createdAt: new Date().toISOString(),
     };
     // Optimistically update SWR cache
-    mutate(["transactions", user.uid], (prev: any[] = []) => [
+    mutate(["transactions", user.uid], (prev: Transaction[] = []) => [
       { ...entry, id: "temp-" + Date.now() },
       ...prev,
     ], false);
@@ -150,11 +171,13 @@ export default function DashboardPage() {
     setIsRecurring(false);
     setRecurring({ frequency: "Monthly", endDate: "" });
     try {
-      await addDoc(collection(db, "transactions"), entry);
+      const userTransactionsRef = collection(db, "users", user.uid, "transactions");
+      await addDoc(userTransactionsRef, entry);
       // Revalidate SWR cache
       mutate(["transactions", user.uid]);
-    } catch (err) {
-      alert("Failed to add entry: " + (err.message || err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert("Failed to add entry: " + message);
     }
   }
 
@@ -198,7 +221,7 @@ export default function DashboardPage() {
                     required
                   >
                     <option value="" disabled>Select category</option>
-                    {defaultCategories.map(cat => (
+                    {(entryType === 'income' ? incomeCategories : expenseCategories).map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                     {customCategories.map(cat => (
@@ -216,7 +239,7 @@ export default function DashboardPage() {
                           onChange={e => setNewCategory(e.target.value)}
                           className="flex-1"
                         />
-                        <Button type="button" size="sm" onClick={handleAddCategory} disabled={!newCategory.trim() || defaultCategories.includes(newCategory.trim()) || customCategories.includes(newCategory.trim())}>Add</Button>
+                        <Button type="button" size="sm" onClick={handleAddCategory} disabled={!newCategory.trim() || expenseCategories.includes(newCategory.trim()) || incomeCategories.includes(newCategory.trim()) || customCategories.includes(newCategory.trim())}>Add</Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => { setShowAddCategory(false); setNewCategory(""); }}>Cancel</Button>
                       </div>
                     ) : (
@@ -335,7 +358,7 @@ export default function DashboardPage() {
                 <CardDescription>This month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-red-500">${summary.expenses.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-red-500">₹{summary.expenses.toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -344,7 +367,7 @@ export default function DashboardPage() {
                 <CardDescription>This month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-green-600">${summary.income.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-green-600">₹{summary.income.toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -353,7 +376,7 @@ export default function DashboardPage() {
                 <CardDescription>Current</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-blue-600">${summary.balance.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-blue-600">₹{summary.balance.toFixed(2)}</div>
               </CardContent>
             </Card>
           </div>
@@ -369,7 +392,7 @@ export default function DashboardPage() {
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-muted-foreground border-b">
-                      <th className="py-2 px-4 text-left">Name</th>
+                      <th className="py-2 px-4 text-left">Category</th>
                       <th className="py-2 px-4 text-left">Date</th>
                       <th className="py-2 px-4 text-right">Amount</th>
                     </tr>
@@ -377,10 +400,10 @@ export default function DashboardPage() {
                   <tbody>
                     {transactions.slice(0, 4).map(tx => (
                       <tr key={tx.id} className="border-b last:border-0">
-                        <td className="py-2 px-4">{tx.name}</td>
+                        <td className="py-2 px-4">{tx.category}</td>
                         <td className="py-2 px-4">{tx.date}</td>
                         <td className={`py-2 px-4 text-right font-medium ${tx.amount < 0 ? "text-red-500" : "text-green-600"}`}>
-                          {tx.amount < 0 ? "-" : "+"}${Math.abs(tx.amount).toFixed(2)}
+                          {tx.amount < 0 ? "-" : "+"}₹{Math.abs(tx.amount).toFixed(2)}
                         </td>
                       </tr>
                     ))}
