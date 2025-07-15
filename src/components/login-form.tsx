@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { GalleryVerticalEnd } from "lucide-react"
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
+import { doc, setDoc } from "firebase/firestore"
+import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -19,18 +21,39 @@ export function LoginForm({
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<"login" | "signup">("login")
+  const [success, setSuccess] = useState("")
+  const router = useRouter()
+
+  // Auto-hide success message after 5 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(""), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [success])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setSuccess("")
     setLoading(true)
     try {
       if (mode === "login") {
         await signInWithEmailAndPassword(auth, email, password)
-        // Redirect or show success
+        router.push("/dashboard")
       } else {
-        await createUserWithEmailAndPassword(auth, email, password)
-        // Redirect or show success
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        // Store user data in Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          createdAt: new Date().toISOString(),
+        })
+        setSuccess("Account created successfully!")
+        // Optionally clear form
+        setEmail("")
+        setPassword("")
+        setMode("login")
       }
     } catch (err: any) {
       setError(err.message)
@@ -41,11 +64,12 @@ export function LoginForm({
 
   const handleGoogleSignIn = async () => {
     setError("")
+    setSuccess("")
     setLoading(true)
     try {
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
-      // Redirect or show success
+      router.push("/dashboard")
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -55,6 +79,13 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      {success && (
+        <div className="w-full flex justify-center">
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-2 mt-2 text-center w-full max-w-md">
+            {success}
+          </div>
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
