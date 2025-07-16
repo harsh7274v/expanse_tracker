@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import useSWR, { mutate } from "swr";
+import { useTransactions } from "@/context/TransactionContext";
 import { Bar, Pie, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -306,12 +306,8 @@ export default function DashboardPage() {
     return Object.keys(errors).length === 0;
   }
 
-  // SWR for transactions
-  const {
-    data: transactions = [],
-    error: transactionsError,
-    isLoading: transactionsLoading,
-  } = useSWR<Transaction[]>(user ? ["transactions", user!.uid] : null, () => fetchTransactions(user!.uid));
+  // Use transactions from context
+  const { transactions, isLoading: transactionsLoading, error: transactionsError, mutate } = useTransactions();
 
   // Calculate summary from transactions
   type Summary = { expenses: number; income: number; balance: number };
@@ -444,11 +440,8 @@ export default function DashboardPage() {
         : null,
       createdAt: new Date().toISOString(),
     };
-    // Optimistically update SWR cache
-    mutate(["transactions", user.uid], (prev: Transaction[] = []) => [
-      { ...entry, id: "temp-" + Date.now() },
-      ...prev,
-    ], false);
+    // Optionally, you can call mutate(undefined, false) for optimistic update if supported
+    mutate();
     setShowAddModal(false);
     setForm({ category: "", amount: "", date: "", note: "" });
     setEntryType("expense");
@@ -458,7 +451,7 @@ export default function DashboardPage() {
       const userTransactionsRef = collection(db, "users", user.uid, "transactions");
       await addDoc(userTransactionsRef, entry);
       // Revalidate SWR cache
-      mutate(["transactions", user.uid]);
+      mutate();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       alert("Failed to add entry: " + message);
@@ -477,7 +470,7 @@ export default function DashboardPage() {
       await deleteDoc(doc(db, "users", user.uid, "transactions", d.id));
     });
     await Promise.all(batchOps);
-    mutate(["transactions", user.uid]); // Refresh SWR
+    mutate(); // Refresh SWR
     alert("All transactions archived.");
   }
 
@@ -491,7 +484,14 @@ export default function DashboardPage() {
 
   // Replace loading state
   if (!user || transactionsLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-lg">Loading dashboard...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="text-blue-600 text-lg font-medium">Loading dashboard...</div>
+        </div>
+      </div>
+    );
   }
   if (transactionsError) {
     return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Failed to load transactions.</div>;

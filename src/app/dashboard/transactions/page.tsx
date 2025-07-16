@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import useSWR from "swr";
+import { useTransactions } from "@/context/TransactionContext";
 import { onAuthStateChanged } from "firebase/auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -185,10 +185,7 @@ export default function TransactionsPage() {
     }
   }
 
-  const { data: transactions = [], isLoading, error, mutate } = useSWR<Transaction[]>(
-    user ? [fetchSource, user.uid] : null,
-    () => user ? fetchTransactions(user.uid, fetchSource) : Promise.resolve([])
-  );
+  const { transactions, isLoading, error, mutate } = useTransactions();
 
   // Get unique categories for filter dropdown
   const categories = useMemo(() => {
@@ -399,6 +396,17 @@ export default function TransactionsPage() {
     const { signOut } = await import("firebase/auth");
     await signOut(auth);
     router.push("/login");
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="text-blue-600 text-lg font-medium">Loading transactions...</div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import { TransactionProvider } from "@/context/TransactionContext";
+import { RouteLoadingProvider } from "@/context/RouteLoadingContext";
+import RouteLoadingSpinner from "@/components/RouteLoadingSpinner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +32,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ServiceWorkerRegister />
-        {children}
+        <TransactionProvider>
+          <RouteLoadingProvider>
+            <RouteLoadingSpinner />
+            {children}
+          </RouteLoadingProvider>
+        </TransactionProvider>
       </body>
     </html>
   );
