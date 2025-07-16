@@ -291,7 +291,7 @@ export default function TransactionsPage() {
       await deleteDoc(txRef);
       mutate();
       setPendingDeleteTx(null);
-    } catch (err) {
+    } catch {
       alert("Failed to delete transaction.");
     }
   }, [user, pendingDeleteTx, mutate]);
@@ -313,8 +313,8 @@ export default function TransactionsPage() {
       if (password) {
         try {
           await updatePassword(user, password);
-        } catch (err: any) {
-          if (err.code === "auth/requires-recent-login") {
+        } catch (err: unknown) {
+          if (err instanceof Error && (err as any).code === "auth/requires-recent-login") {
             setReauthNeeded(true);
             setSettingsError("Re-authentication required to change password.");
             return;
@@ -328,8 +328,8 @@ export default function TransactionsPage() {
         setShowSettings(false);
         setSettingsSuccess("");
       }, 1200);
-    } catch (err: any) {
-      setSettingsError(err.message || "Failed to update profile.");
+    } catch (err: unknown) {
+      setSettingsError(err instanceof Error ? err.message : "Failed to update profile.");
     } finally {
       setSettingsLoading(false);
     }
@@ -374,8 +374,8 @@ export default function TransactionsPage() {
         setShowSettings(false);
         setSettingsSuccess("");
       }, 1200);
-    } catch (err: any) {
-      setSettingsError(err.message || "Re-authentication failed.");
+    } catch (err: unknown) {
+      setSettingsError(err instanceof Error ? err.message : "Re-authentication failed.");
     } finally {
       setReauthLoading(false);
     }

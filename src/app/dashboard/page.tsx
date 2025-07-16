@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UserCircle, LayoutDashboard, Briefcase, List, Settings, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, Briefcase, List, Settings, LogOut, Menu } from "lucide-react";
 import Image from "next/image";
 import type { User } from "firebase/auth";
 import { signOut } from "firebase/auth";
@@ -112,8 +112,8 @@ export default function DashboardPage() {
       if (password) {
         try {
           await updatePassword(user, password);
-        } catch (err: any) {
-          if (err.code === "auth/requires-recent-login") {
+        } catch (err: unknown) {
+          if (err instanceof Error && (err as any).code === "auth/requires-recent-login") {
             setReauthNeeded(true);
             setSettingsError("Re-authentication required to change password.");
             return;
@@ -127,8 +127,8 @@ export default function DashboardPage() {
         setShowSettings(false);
         setSettingsSuccess("");
       }, 1200);
-    } catch (err: any) {
-      setSettingsError(err.message || "Failed to update profile.");
+    } catch (err: unknown) {
+      setSettingsError(err instanceof Error ? err.message : "Failed to update profile.");
     } finally {
       setSettingsLoading(false);
     }
@@ -173,8 +173,8 @@ export default function DashboardPage() {
         setShowSettings(false);
         setSettingsSuccess("");
       }, 1200);
-    } catch (err: any) {
-      setSettingsError(err.message || "Re-authentication failed.");
+    } catch (err: unknown) {
+      setSettingsError(err instanceof Error ? err.message : "Re-authentication failed.");
     } finally {
       setReauthLoading(false);
     }
@@ -246,7 +246,7 @@ export default function DashboardPage() {
         if (userDocSnap.exists()) {
           lastResetMonth = userDocSnap.data().lastResetMonth;
         }
-      } catch (e) {
+      } catch {
         // If user doc doesn't exist, create it below
       }
       if (lastResetMonth !== currentMonth) {
@@ -254,7 +254,7 @@ export default function DashboardPage() {
         // Only update the field if needed
         try {
           await setDoc(userDocRef, { lastResetMonth: currentMonth }, { merge: true });
-        } catch (e) {
+        } catch {
           // handle error
         }
       }
