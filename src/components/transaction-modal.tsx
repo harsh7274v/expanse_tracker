@@ -7,12 +7,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
+import type { User } from "firebase/auth";
+import type { KeyedMutator } from "swr";
+
+interface Transaction {
+  id: string;
+  category: string;
+  date: string;
+  amount: number;
+  note?: string;
+  type?: string;
+  recurring?: {
+    frequency: string;
+    endDate: string | null;
+  } | null;
+  createdAt?: string;
+}
 
 interface TransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: any;
-  mutate: (key: any, data?: any, shouldRevalidate?: boolean) => void;
+  user: User;
+  mutate: KeyedMutator<Transaction[]>;
   categories: string[];
 }
 
@@ -78,7 +94,7 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
       createdAt: new Date().toISOString(),
     };
     // Optimistically update SWR cache
-    mutate(["transactions", user.uid], (prev: any[] = []) => [
+    mutate((prev: Transaction[] = []) => [
       { ...entry, id: "temp-" + Date.now() },
       ...prev,
     ], false);
@@ -91,7 +107,7 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
       const userTransactionsRef = collection(db, "users", user.uid, "transactions");
       await addDoc(userTransactionsRef, entry);
       // Revalidate SWR cache
-      mutate(["transactions", user.uid]);
+      mutate();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       alert("Failed to add entry: " + message);

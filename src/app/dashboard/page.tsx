@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, where, addDoc, deleteDoc, doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UserCircle, LayoutDashboard, Briefcase, List, Settings, LogOut, Menu } from "lucide-react";
+import Image from "next/image";
+import type { User } from "firebase/auth";
 import { signOut } from "firebase/auth";
 import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -26,9 +28,10 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler, // <-- Add this line for the Filler plugin
 } from "chart.js";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend, Filler); // <-- Add Filler here
 
 // Add Transaction type
 interface Transaction {
@@ -36,7 +39,13 @@ interface Transaction {
   category: string;
   date: string;
   amount: number;
-  [key: string]: any;
+  note?: string;
+  type?: string;
+  recurring?: {
+    frequency: string;
+    endDate: string | null;
+  } | null;
+  createdAt?: string;
 }
 
 // Firestore fetcher for SWR
@@ -48,11 +57,11 @@ const fetchTransactions: (uid: string) => Promise<Transaction[]> = async (uid) =
 };
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState({ category: "", amount: "", date: "", note: "" });
+  const [form, setForm] = useState<{ category: string; amount: string; date: string; note: string }>({ category: "", amount: "", date: "", note: "" });
   const [formErrors, setFormErrors] = useState<{ category?: string; amount?: string; date?: string }>({});
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense');
   const [isRecurring, setIsRecurring] = useState(false);
@@ -102,7 +111,7 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         router.push("/login");
         return;
@@ -180,11 +189,12 @@ export default function DashboardPage() {
     data: transactions = [],
     error: transactionsError,
     isLoading: transactionsLoading,
-  } = useSWR<Transaction[]>(user ? ["transactions", user.uid] : null, () => fetchTransactions(user.uid));
+  } = useSWR<Transaction[]>(user ? ["transactions", user!.uid] : null, () => fetchTransactions(user!.uid));
 
   // Calculate summary from transactions
+  type Summary = { expenses: number; income: number; balance: number };
   const summary = transactions.reduce(
-    (acc: any, tx: any) => {
+    (acc: Summary, tx: Transaction) => {
       if (tx.amount < 0) acc.expenses += Math.abs(tx.amount);
       else acc.income += tx.amount;
       return { ...acc, balance: acc.income - acc.expenses };
@@ -333,17 +343,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Delete all transactions for the current user
-  async function deleteAllTransactions() {
-    if (!user) return;
-    const userTransactionsRef = collection(db, "users", user.uid, "transactions");
-    const querySnapshot = await getDocs(userTransactionsRef);
-    const batchDeletes = querySnapshot.docs.map((d) => deleteDoc(doc(db, "users", user.uid, "transactions", d.id)));
-    await Promise.all(batchDeletes);
-    mutate(["transactions", user.uid]); // Refresh SWR
-    alert("All transactions deleted.");
-  }
-
   // Archive all transactions for the current user
   async function archiveAllTransactions() {
     if (!user) return;
@@ -358,6 +357,14 @@ export default function DashboardPage() {
     await Promise.all(batchOps);
     mutate(["transactions", user.uid]); // Refresh SWR
     alert("All transactions archived.");
+  }
+
+  // Helper to check if photoURL is a valid URL and not a placeholder
+  function isValidPhotoURL(url?: string | null) {
+    if (!url) return false;
+    if (typeof url !== 'string') return false;
+    if (['profile', 'Profile', ''].includes(url.trim())) return false;
+    return /^https?:\/\//.test(url);
   }
 
   // Replace loading state
@@ -636,10 +643,12 @@ export default function DashboardPage() {
               {/* Profile Picture */}
               <div className="flex flex-col items-center gap-1 w-full">
                 <div className="rounded-full border-4 border-primary/30 bg-zinc-300 dark:bg-zinc-700 w-16 h-16 flex items-center justify-center overflow-hidden shadow">
-                  {user?.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-16 h-16 object-cover rounded-full" />
+                  {isValidPhotoURL(user?.photoURL) ? (
+                    <Image src={user.photoURL!} alt="Profile" width={64} height={64} className="w-16 h-16 object-cover rounded-full" style={{ height: 'auto' }} />
                   ) : (
-                    <UserCircle className="w-12 h-12 text-zinc-500" />
+                    <span className="w-16 h-16 flex items-center justify-center text-3xl font-bold text-white bg-primary rounded-full">
+                      {(user?.displayName?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="font-semibold text-base mt-1 truncate max-w-[90%] text-center">{user?.displayName || "User Name"}</div>
@@ -670,10 +679,12 @@ export default function DashboardPage() {
               {/* Profile Picture */}
               <div className="flex flex-col items-center gap-1 mb-4">
                 <div className="rounded-full border-4 border-primary/30 bg-zinc-300 dark:bg-zinc-700 w-14 h-14 flex items-center justify-center overflow-hidden shadow">
-                  {user?.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-14 h-14 object-cover rounded-full" />
+                  {isValidPhotoURL(user?.photoURL) ? (
+                    <Image src={user.photoURL!} alt="Profile" width={56} height={56} className="w-14 h-14 object-cover rounded-full" style={{ height: 'auto' }} />
                   ) : (
-                    <UserCircle className="w-10 h-10 text-zinc-500" />
+                    <span className="w-14 h-14 flex items-center justify-center text-2xl font-bold text-white bg-primary rounded-full">
+                      {(user?.displayName?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="font-semibold text-sm mt-1 truncate max-w-[90%] text-center">{user?.displayName || "User Name"}</div>

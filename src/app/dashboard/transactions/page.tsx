@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import useSWR from "swr";
 import { onAuthStateChanged } from "firebase/auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Search, Edit, Trash2, ArrowDownUp, Plus, FileDown, TrendingDown, TrendingUp, Wallet, Calendar, X, AlertTriangle } from "lucide-react";
+import { Search, Edit, Trash2, ArrowDownUp, Plus, FileDown, TrendingDown, TrendingUp, Wallet, Calendar, X } from "lucide-react";
 import TransactionModal from "@/components/transaction-modal";
+import type { User } from "firebase/auth";
 
 interface Transaction {
   id: string;
@@ -18,7 +17,12 @@ interface Transaction {
   date: string;
   amount: number;
   note?: string;
-  [key: string]: any;
+  type?: string;
+  recurring?: {
+    frequency: string;
+    endDate: string | null;
+  } | null;
+  createdAt?: string;
 }
 
 // Helper to check if a date string is in the current month
@@ -44,7 +48,7 @@ const sortOptions = [
 ];
 
 export default function TransactionsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -89,7 +93,7 @@ export default function TransactionsPage() {
 
   const { data: transactions = [], isLoading, error, mutate } = useSWR<Transaction[]>(
     user ? [fetchSource, user.uid] : null,
-    () => fetchTransactions(user.uid, fetchSource)
+    () => user ? fetchTransactions(user.uid, fetchSource) : Promise.resolve([])
   );
 
   // Get unique categories for filter dropdown
@@ -184,7 +188,7 @@ export default function TransactionsPage() {
     try {
       const txRef = doc(db, "users", user.uid, "transactions", pendingDeleteTx.id);
       await deleteDoc(txRef);
-      mutate(["transactions", user.uid]);
+      mutate();
       setPendingDeleteTx(null);
     } catch (err) {
       alert("Failed to delete transaction.");
@@ -494,7 +498,13 @@ export default function TransactionsPage() {
         )}
       </div>
       {/* Add Transaction Modal */}
-      <TransactionModal open={showModal} onOpenChange={setShowModal} user={user} mutate={mutate} categories={categories} />
+      <TransactionModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        user={user as User}
+        mutate={mutate}
+        categories={categories}
+      />
       {/* Delete Confirmation Modal */}
       <Dialog open={!!pendingDeleteTx} onOpenChange={open => { if (!open) setPendingDeleteTx(null); }}>
         <DialogContent className="max-w-sm mx-auto">

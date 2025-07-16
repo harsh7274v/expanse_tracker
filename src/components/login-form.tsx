@@ -55,10 +55,10 @@ export function LoginForm({
         setPassword("")
         setMode("login")
       }
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -70,10 +70,10 @@ export function LoginForm({
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
       router.push("/dashboard")
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -136,6 +136,7 @@ export function LoginForm({
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 disabled={loading}
+                autoComplete="email"
               />
             </div>
             <div className="grid gap-3">
@@ -148,6 +149,7 @@ export function LoginForm({
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 disabled={loading}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </div>
             {error && (
@@ -182,3 +184,4 @@ export function LoginForm({
     </div>
   )
 }
+
