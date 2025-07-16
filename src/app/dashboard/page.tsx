@@ -113,7 +113,13 @@ export default function DashboardPage() {
         try {
           await updatePassword(user, password);
         } catch (err: unknown) {
-          if (err instanceof Error && (err as any).code === "auth/requires-recent-login") {
+          if (
+            err instanceof Error &&
+            typeof err === "object" &&
+            err !== null &&
+            "code" in err &&
+            (err as { code?: string }).code === "auth/requires-recent-login"
+          ) {
             setReauthNeeded(true);
             setSettingsError("Re-authentication required to change password.");
             return;
