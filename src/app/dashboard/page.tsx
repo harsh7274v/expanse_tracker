@@ -339,6 +339,73 @@ export default function DashboardPage() {
     return <div className="min-h-screen flex items-center justify-center text-lg text-red-500">Failed to load transactions.</div>;
   }
 
+  const now = new Date();
+  const last30Days = new Date(now);
+  last30Days.setDate(now.getDate() - 29);
+  const last30DaysStr = last30Days.toISOString().slice(0, 10);
+  const txLast30 = transactions.filter(tx => tx.date && tx.date >= last30DaysStr);
+  const totalSpent30 = txLast30.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+  const totalIncome30 = txLast30.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
+  const categoryTotals30: Record<string, number> = {};
+  txLast30.filter(tx => tx.amount < 0).forEach(tx => {
+    categoryTotals30[tx.category] = (categoryTotals30[tx.category] || 0) + Math.abs(tx.amount);
+  });
+  const barData = {
+    labels: Object.keys(categoryTotals30),
+    datasets: [
+      {
+        label: "Expenses (₹)",
+        data: Object.values(categoryTotals30),
+        backgroundColor: [
+          "#ef4444", "#f59e42", "#fbbf24", "#10b981", "#3b82f6", "#a78bfa", "#f472b6", "#6366f1"
+        ],
+        borderRadius: 8,
+        barPercentage: 0.7,
+        categoryPercentage: 0.6,
+      },
+    ],
+  };
+  const barOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: "Spending by Category (Last 30 Days)", font: { size: 18 } },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: (tickValue: string | number) => `₹${tickValue}`,
+        },
+        grid: { color: "#e5e7eb" },
+      },
+      x: {
+        grid: { display: false },
+      },
+    },
+  };
+  const pieData = {
+    labels: ["Expense", "Income"],
+    datasets: [
+      {
+        data: [totalSpent30, totalIncome30],
+        backgroundColor: ["#ef4444", "#10b981"],
+        borderWidth: 2,
+        borderColor: "#fff",
+        hoverOffset: 8,
+      },
+    ],
+  };
+  const pieOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: true, position: "bottom" },
+      title: { display: true, text: "Income vs Expense (Last 30 Days)", font: { size: 18 } },
+      tooltip: { enabled: true },
+    },
+  };
+
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 p-6 md:p-10">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
@@ -429,99 +496,22 @@ export default function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Spending Overview</CardTitle>
-              <CardDescription>Monthly summary by category</CardDescription>
+              <CardDescription>Last 30 days</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 flex items-center justify-center">
-                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
-                  <Bar data={
-                    {
-                      labels: categories,
-                      datasets: [
-                        {
-                          label: "Expenses (₹)",
-                          data: categories.map(cat => transactions.filter(tx => tx.amount < 0 && tx.category === cat).reduce((sum, tx) => sum + Math.abs(tx.amount), 0)),
-                          backgroundColor: "#ef4444",
-                        },
-                      ],
-                    }
-                  } options={
-                    {
-                      responsive: true,
-                      plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: "Spending by Category (This Month)" },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: (tickValue: string | number) => `₹${tickValue}`,
-                          },
-                        },
-                      },
-                    }
-                  } />
-                ) : (
-                  <span className="italic text-muted-foreground">No expenses for this month.</span>
-                )}
-              </div>
-              <div className="h-64 flex items-center justify-center mt-8">
-                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
-                  <Pie data={
-                    {
-                      labels: categories,
-                      datasets: [
-                        {
-                          label: "Expenses (₹)",
-                          data: categories.map(cat => transactions.filter(tx => tx.amount < 0 && tx.category === cat).reduce((sum, tx) => sum + Math.abs(tx.amount), 0)),
-                          backgroundColor: [
-                            "#ef4444", "#f59e42", "#fbbf24", "#10b981", "#3b82f6", "#a78bfa", "#f472b6", "#6366f1"
-                          ],
-                        },
-                      ],
-                    }
-                  } />
-                ) : (
-                  <span className="italic text-muted-foreground">No category data for this month.</span>
-                )}
-              </div>
-              <div className="h-64 flex items-center justify-center mt-8">
-                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
-                  <Line data={
-                    {
-                      labels: transactions.filter(tx => tx.amount < 0).map(tx => new Date(tx.date).toISOString().slice(0, 10)),
-                      datasets: [
-                        {
-                          label: "Weekly Expenses (₹)",
-                          data: transactions.filter(tx => tx.amount < 0).map(tx => Math.abs(tx.amount)),
-                          borderColor: "#ef4444",
-                          backgroundColor: "#fee2e2",
-                          tension: 0.3,
-                          fill: true,
-                        },
-                      ],
-                    }
-                  } options={
-                    {
-                      responsive: true,
-                      plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: "Weekly Expense Trends (Last 8 Weeks)" },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: (tickValue: string | number) => `₹${tickValue}`,
-                          },
-                        },
-                      },
-                    }
-                  } />
-                ) : (
-                  <span className="italic text-muted-foreground">No weekly trend data.</span>
-                )}
+              <div className="flex flex-col md:flex-row gap-8 items-center justify-between">
+                <div className="flex-1 flex flex-col items-center gap-2">
+                  <div className="text-lg font-semibold text-zinc-500">Total Spent</div>
+                  <div className="text-3xl font-bold text-red-500">₹{totalSpent30.toFixed(2)}</div>
+                  <div className="text-lg font-semibold text-zinc-500 mt-2">Total Income</div>
+                  <div className="text-3xl font-bold text-green-600">₹{totalIncome30.toFixed(2)}</div>
+                </div>
+                <div className="flex-1 min-w-[250px] max-w-[400px]">
+                  <Bar data={barData} options={barOptions} />
+                </div>
+                <div className="flex-1 min-w-[220px] max-w-[320px]">
+                  <Pie data={pieData} options={pieOptions} />
+                </div>
               </div>
             </CardContent>
           </Card>

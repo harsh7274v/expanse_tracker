@@ -72,7 +72,7 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
   useEffect(() => {
     const defaultCat = entryType === 'expense' ? expenseCategories[0] : incomeCategories[0];
     setForm(f => ({ ...f, category: defaultCat }));
-  }, [entryType]);
+  }, [entryType, expenseCategories, incomeCategories]);
 
   function handleAddCategory() {
     const cat = newCategory.trim();

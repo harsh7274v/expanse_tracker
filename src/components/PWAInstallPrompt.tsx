@@ -1,19 +1,24 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 
 const STORAGE_KEY = "pwa-install-dismissed";
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: string }>;
+};
+
 export default function PWAInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Only show if not previously dismissed
     if (localStorage.getItem(STORAGE_KEY) === "true") return;
 
-    const handler = (e: any) => {
+    const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowPrompt(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
@@ -51,7 +56,7 @@ export default function PWAInstallPrompt() {
 
   return (
     <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-white dark:bg-zinc-900 border border-blue-500 shadow-lg rounded-lg px-6 py-4 flex items-center gap-4 animate-fade-in">
-      <img src="/icon-192x192.png" alt="App Icon" className="w-10 h-10 rounded" />
+      <Image src="/icon-192x192.png" alt="App Icon" width={40} height={40} className="w-10 h-10 rounded" />
       <button
         onClick={handleInstall}
         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"

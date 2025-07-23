@@ -22,7 +22,7 @@ export interface Transaction {
 type TransactionContextType = {
   transactions: Transaction[];
   isLoading: boolean;
-  error: any;
+  error: unknown;
   mutate: KeyedMutator<Transaction[]>;
 };
 
