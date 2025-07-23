@@ -1,22 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Briefcase, List, Settings, LogOut, Menu } from "lucide-react";
 import Image from "next/image";
 import type { User } from "firebase/auth";
-import { signOut } from "firebase/auth";
 import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTransactions } from "@/context/TransactionContext";
-import { Bar, Pie, Line } from "react-chartjs-2";
+import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -34,34 +30,11 @@ import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCre
 import { GoogleAuthProvider } from "firebase/auth";
 import AnimatedLoadingDots from "@/components/AnimatedLoadingDots";
 import TransactionModal from "@/components/transaction-modal";
+import { onAuthStateChanged, getAuth, signOut } from "firebase/auth";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend, Filler); // <-- Add Filler here
 
-// Add Transaction type
-interface Transaction {
-  id: string;
-  category: string;
-  date: string;
-  amount: number;
-  note?: string;
-  type?: string;
-  recurring?: {
-    frequency: string;
-    endDate: string | null;
-  } | null;
-  createdAt?: string;
-}
-
-// Firestore fetcher for SWR
-const fetchTransactions: (uid: string) => Promise<Transaction[]> = async (uid) => {
-  if (!uid) return [];
-  const userTransactionsRef = collection(db, "users", uid, "transactions");
-  const querySnapshot = await getDocs(userTransactionsRef);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-};
-
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -77,6 +50,15 @@ export default function DashboardPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [reauthNeeded, setReauthNeeded] = useState(false);
   const [reauthLoading, setReauthLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (showSettings && user) {
@@ -185,134 +167,20 @@ export default function DashboardPage() {
     }
   }
 
-  const expenseCategories = [
-    "Food",
-    "Transport",
-    "Shopping",
-    "Bills",
-    "Entertainment",
-    "Other",
-  ];
-  const incomeCategories = [
-    "Salary",
-    "Business",
-    "Investments",
-    "Gifts",
-    "Other Income",
-  ];
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCategory, setNewCategory] = useState("");
-
   // Load custom categories from localStorage
   useEffect(() => {
-    const stored = localStorage.getItem("customCategories");
-    if (stored) setCustomCategories(JSON.parse(stored));
+    // const stored = localStorage.getItem("customCategories");
+    // if (stored) setCustomCategories(JSON.parse(stored));
   }, []);
   // Save custom categories to localStorage
   useEffect(() => {
-    localStorage.setItem("customCategories", JSON.stringify(customCategories));
-  }, [customCategories]);
+    // localStorage.setItem("customCategories", JSON.stringify(customCategories));
+  }, []);
 
   // When switching entryType, reset category
   useEffect(() => {
     // setForm(f => ({ ...f, category: "" })); // This line is no longer needed
   }, []); // Removed dependency on entryType
-
-  function handleAddCategory() {
-    const cat = newCategory.trim();
-    if (!cat || expenseCategories.includes(cat) || incomeCategories.includes(cat) || customCategories.includes(cat)) return;
-    setCustomCategories([...customCategories, cat]);
-    setNewCategory("");
-    setShowAddCategory(false);
-  }
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-      setUser(user);
-    });
-    return () => unsubscribe();
-  }, [router]);
-
-  // Automate archive/delete at the start of each month using Firestore for lastResetMonth
-  useEffect(() => {
-    if (!user) return;
-    const checkAndResetMonth = async () => {
-      const now = new Date();
-      const currentMonth = now.toISOString().slice(0, 7); // 'YYYY-MM'
-      const userDocRef = doc(db, "users", user.uid);
-      let lastResetMonth = null;
-      try {
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          lastResetMonth = userDocSnap.data().lastResetMonth;
-        }
-      } catch {
-        // If user doc doesn't exist, create it below
-      }
-      if (lastResetMonth !== currentMonth) {
-        await archiveAllTransactions();
-        // Only update the field if needed
-        try {
-          await setDoc(userDocRef, { lastResetMonth: currentMonth }, { merge: true });
-        } catch {
-          // handle error
-        }
-      }
-    };
-    checkAndResetMonth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const handleMenuClick = (path: string) => {
-    if (path === "/dashboard/settings") {
-      setShowSettings(true);
-      return;
-    }
-    if (pathname !== path) router.push(path);
-  };
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push("/login");
-  };
-
-  // Helper for quick date selection
-  function getDateString(offset: number) {
-    const d = new Date();
-    d.setDate(d.getDate() + offset);
-    // Format as YYYY-MM-DD in local time
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-  const today = getDateString(0);
-  const tomorrow = getDateString(1);
-  const yesterday = getDateString(-1);
-
-  // Remove all modal/form state and logic related to adding expenses directly in this file
-  // Instead, use TransactionModal and pass the required props
-
-  // Archive all transactions for the current user
-  async function archiveAllTransactions() {
-    if (!user) return;
-    const userTransactionsRef = collection(db, "users", user.uid, "transactions");
-    const archiveRef = collection(db, "users", user.uid, "archived_transactions");
-    const querySnapshot = await getDocs(userTransactionsRef);
-    // Copy each transaction to archive, then delete
-    const batchOps = querySnapshot.docs.map(async (d) => {
-      await addDoc(archiveRef, d.data());
-      await deleteDoc(doc(db, "users", user.uid, "transactions", d.id));
-    });
-    await Promise.all(batchOps);
-    mutate(); // Refresh SWR
-    alert("All transactions archived.");
-  }
 
   // Helper to check if photoURL is a valid URL and not a placeholder
   function isValidPhotoURL(url?: string | null) {
@@ -322,15 +190,19 @@ export default function DashboardPage() {
     return /^https?:\/\//.test(url);
   }
 
+  const handleLogout = async () => {
+    const auth = getAuth();
+    await signOut(auth);
+    router.push("/login");
+  };
+
   // Replace loading state
   if (!user || transactionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
-          <img src="/favicon.ico" alt="Loading" className="w-12 h-12 animate-pulse" />
-          <div className="text-blue-600 text-lg font-medium">
-            <AnimatedLoadingDots text="" />
-          </div>
+          <Image src="/favicon.ico" alt="Loading" width={48} height={48} className="w-12 h-12 animate-pulse" />
+          <AnimatedLoadingDots text="" />
         </div>
       </div>
     );
@@ -400,7 +272,7 @@ export default function DashboardPage() {
   const pieOptions = {
     responsive: true,
     plugins: {
-      legend: { display: true, position: "bottom" },
+      legend: { display: true, position: "bottom" as const },
       title: { display: true, text: "Income vs Expense (Last 30 Days)", font: { size: 18 } },
       tooltip: { enabled: true },
     },
@@ -537,10 +409,10 @@ export default function DashboardPage() {
               <div className="w-full border-t border-zinc-200 dark:border-zinc-800 my-2" />
               {/* Menu */}
               <nav className="w-full flex flex-col gap-1 mt-0">
-                <SidebarMenuItem icon={<LayoutDashboard />} label="Dashboard" active={pathname === "/dashboard"} onClick={() => handleMenuClick("/dashboard")} />
-                <SidebarMenuItem icon={<Briefcase />} label="Portfolio" active={pathname === "/dashboard/portfolio"} onClick={() => handleMenuClick("/dashboard/portfolio")} />
-                <SidebarMenuItem icon={<List />} label="Transactions" active={pathname === "/dashboard/transactions"} onClick={() => handleMenuClick("/dashboard/transactions")} />
-                <SidebarMenuItem icon={<Settings />} label="Settings" active={pathname === "/dashboard/settings"} onClick={() => handleMenuClick("/dashboard/settings")} />
+                <SidebarMenuItem icon={<LayoutDashboard />} label="Dashboard" active={pathname === "/dashboard"} onClick={() => router.push("/dashboard")} />
+                <SidebarMenuItem icon={<Briefcase />} label="Portfolio" active={pathname === "/dashboard/portfolio"} onClick={() => router.push("/dashboard/portfolio")} />
+                <SidebarMenuItem icon={<List />} label="Transactions" active={pathname === "/dashboard/transactions"} onClick={() => router.push("/dashboard/transactions")} />
+                <SidebarMenuItem icon={<Settings />} label="Settings" active={showSettings} onClick={() => setShowSettings(true)} />
                 <SidebarMenuItem icon={<LogOut />} label="Logout" onClick={handleLogout} />
               </nav>
             </div>
@@ -573,10 +445,10 @@ export default function DashboardPage() {
               <div className="w-full border-t border-zinc-200 dark:border-zinc-800 my-2" />
               {/* Menu */}
               <nav className="w-full flex flex-col gap-1">
-                <SidebarMenuItem icon={<LayoutDashboard />} label="Dashboard" active={pathname === "/dashboard"} onClick={() => { handleMenuClick("/dashboard"); setShowSidebar(false); }} />
-                <SidebarMenuItem icon={<Briefcase />} label="Portfolio" active={pathname === "/dashboard/portfolio"} onClick={() => { handleMenuClick("/dashboard/portfolio"); setShowSidebar(false); }} />
-                <SidebarMenuItem icon={<List />} label="Transactions" active={pathname === "/dashboard/transactions"} onClick={() => { handleMenuClick("/dashboard/transactions"); setShowSidebar(false); }} />
-                <SidebarMenuItem icon={<Settings />} label="Settings" active={pathname === "/dashboard/settings"} onClick={() => { handleMenuClick("/dashboard/settings"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<LayoutDashboard />} label="Dashboard" active={pathname === "/dashboard"} onClick={() => { router.push("/dashboard"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<Briefcase />} label="Portfolio" active={pathname === "/dashboard/portfolio"} onClick={() => { router.push("/dashboard/portfolio"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<List />} label="Transactions" active={pathname === "/dashboard/transactions"} onClick={() => { router.push("/dashboard/transactions"); setShowSidebar(false); }} />
+                <SidebarMenuItem icon={<Settings />} label="Settings" active={showSettings} onClick={() => { setShowSettings(true); setShowSidebar(false); }} />
                 <SidebarMenuItem icon={<LogOut />} label="Logout" onClick={() => { handleLogout(); setShowSidebar(false); }} />
               </nav>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -42,21 +42,21 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategory, setNewCategory] = useState("");
 
-  const expenseCategories = [
+  const expenseCategories = useMemo(() => [
     "Food",
     "Transport",
     "Shopping",
     "Bills",
     "Entertainment",
     "Other",
-  ];
-  const incomeCategories = [
+  ], []);
+  const incomeCategories = useMemo(() => [
     "Salary",
     "Business",
     "Investments",
     "Gifts",
     "Other Income",
-  ];
+  ], []);
 
   // Load custom categories from localStorage
   useEffect(() => {

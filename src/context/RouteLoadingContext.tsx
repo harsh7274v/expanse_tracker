@@ -1,12 +1,10 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 const RouteLoadingContext = createContext<{ loading: boolean }>({ loading: false });
 
 export function RouteLoadingProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     // Next.js app router does not have router.events, so we use navigation events

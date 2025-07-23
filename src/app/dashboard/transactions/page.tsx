@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { deleteDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useTransactions } from "@/context/TransactionContext";
 import { onAuthStateChanged } from "firebase/auth";
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup, GoogleAuthProvider } from "firebase/auth";
 import AnimatedLoadingDots from "@/components/AnimatedLoadingDots";
+import Image from "next/image";
 
 interface Transaction {
   id: string;
@@ -31,22 +32,6 @@ interface Transaction {
   } | null;
   createdAt?: string;
 }
-
-// Helper to check if a date string is in the current month
-function isCurrentMonth(dateStr: string) {
-  const now = new Date();
-  const d = new Date(dateStr);
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
-
-// Fetcher for transactions or archived_transactions
-type FetchSource = "transactions" | "archived_transactions";
-const fetchTransactions = async (uid: string, source: FetchSource): Promise<Transaction[]> => {
-  if (!uid) return [];
-  const userTransactionsRef = collection(db, "users", uid, source);
-  const querySnapshot = await getDocs(userTransactionsRef);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-};
 
 const sortOptions = [
   { value: "date", label: "Date" },
@@ -170,7 +155,6 @@ export default function TransactionsPage() {
   }
 
   // Determine which collection to use based on date range
-  let fetchSource: FetchSource = "transactions";
   let viewingArchived = false;
   if (startDate && endDate) {
     // If both start and end date are in a previous month (not current month), use archived_transactions
@@ -181,7 +165,6 @@ export default function TransactionsPage() {
     const startMonth = start.getFullYear() + "-" + String(start.getMonth() + 1).padStart(2, '0');
     const endMonth = end.getFullYear() + "-" + String(end.getMonth() + 1).padStart(2, '0');
     if (startMonth !== currentMonth && endMonth !== currentMonth && startMonth === endMonth) {
-      fetchSource = "archived_transactions";
       viewingArchived = true;
     }
   }
@@ -403,7 +386,7 @@ export default function TransactionsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
-          <img src="/favicon.ico" alt="Loading" className="w-12 h-12 animate-pulse" />
+          <Image src="/favicon.ico" alt="Loading" width={48} height={48} className="w-12 h-12 animate-pulse" />
           <div className="text-blue-600 text-lg font-medium">
             <AnimatedLoadingDots text="" />
           </div>
