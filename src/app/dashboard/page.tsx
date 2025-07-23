@@ -32,6 +32,8 @@ import {
 } from "chart.js";
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup } from "firebase/auth";
 import { GoogleAuthProvider } from "firebase/auth";
+import AnimatedLoadingDots from "@/components/AnimatedLoadingDots";
+import TransactionModal from "@/components/transaction-modal";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend, Filler); // <-- Add Filler here
 
@@ -63,11 +65,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState<{ category: string; amount: string; date: string; note: string }>({ category: "", amount: "", date: "", note: "" });
-  const [formErrors, setFormErrors] = useState<{ category?: string; amount?: string; date?: string }>({});
-  const [entryType, setEntryType] = useState<'expense' | 'income'>('expense');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurring, setRecurring] = useState({ frequency: 'Monthly', endDate: '' });
+  const { transactions, isLoading: transactionsLoading, error: transactionsError, mutate } = useTransactions();
+  const categories = Array.from(new Set(transactions.map(tx => tx.category)));
   const [showSidebar, setShowSidebar] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -217,8 +216,8 @@ export default function DashboardPage() {
 
   // When switching entryType, reset category
   useEffect(() => {
-    setForm(f => ({ ...f, category: "" }));
-  }, [entryType]);
+    // setForm(f => ({ ...f, category: "" })); // This line is no longer needed
+  }, []); // Removed dependency on entryType
 
   function handleAddCategory() {
     const cat = newCategory.trim();
@@ -296,167 +295,8 @@ export default function DashboardPage() {
   const tomorrow = getDateString(1);
   const yesterday = getDateString(-1);
 
-  function validateForm() {
-    const errors: { category?: string; amount?: string; date?: string } = {};
-    if (!form.category) errors.category = "Category is required.";
-    if (!form.amount) errors.amount = "Amount is required.";
-    else if (isNaN(Number(form.amount)) || Number(form.amount) <= 0) errors.amount = "Amount must be a positive number.";
-    if (!form.date) errors.date = "Date is required.";
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  }
-
-  // Use transactions from context
-  const { transactions, isLoading: transactionsLoading, error: transactionsError, mutate } = useTransactions();
-
-  // Calculate summary from transactions
-  type Summary = { expenses: number; income: number; balance: number };
-  const summary = transactions.reduce(
-    (acc: Summary, tx: Transaction) => {
-      if (tx.amount < 0) acc.expenses += Math.abs(tx.amount);
-      else acc.income += tx.amount;
-      return { ...acc, balance: acc.income - acc.expenses };
-    },
-    { expenses: 0, income: 0, balance: 0 }
-  );
-
-  // Prepare data for the bar chart (monthly expenses by category)
-  const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7); // 'YYYY-MM'
-  const expensesThisMonth = transactions.filter(
-    tx => tx.amount < 0 && tx.date && tx.date.startsWith(currentMonth)
-  );
-  const categoryTotals: Record<string, number> = {};
-  expensesThisMonth.forEach(tx => {
-    categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + Math.abs(tx.amount);
-  });
-  const chartData = {
-    labels: Object.keys(categoryTotals),
-    datasets: [
-      {
-        label: "Expenses (₹)",
-        data: Object.values(categoryTotals),
-        backgroundColor: "#ef4444",
-      },
-    ],
-  };
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      title: { display: true, text: "Spending by Category (This Month)" },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (tickValue: string | number) => `₹${tickValue}`,
-        },
-      },
-    },
-  };
-
-  // Pie chart data (category-wise expenses for current month)
-  const pieData = {
-    labels: Object.keys(categoryTotals),
-    datasets: [
-      {
-        label: "Expenses (₹)",
-        data: Object.values(categoryTotals),
-        backgroundColor: [
-          "#ef4444", "#f59e42", "#fbbf24", "#10b981", "#3b82f6", "#a78bfa", "#f472b6", "#6366f1"
-        ],
-      },
-    ],
-  };
-  // Weekly trends (last 8 weeks)
-  function getWeekStart(date: Date) {
-    const d = new Date(date);
-    d.setDate(d.getDate() - d.getDay()); // Sunday as start
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  const weeks: string[] = [];
-  const weekTotals: Record<string, number> = {};
-  for (let i = 7; i >= 0; i--) {
-    const weekStart = getWeekStart(new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000));
-    const label = weekStart.toISOString().slice(0, 10);
-    weeks.push(label);
-    weekTotals[label] = 0;
-  }
-  transactions.forEach(tx => {
-    if (tx.amount < 0 && tx.date) {
-      const txDate = new Date(tx.date);
-      const weekStart = getWeekStart(txDate).toISOString().slice(0, 10);
-      if (weekTotals[weekStart] !== undefined) {
-        weekTotals[weekStart] += Math.abs(tx.amount);
-      }
-    }
-  });
-  const lineData = {
-    labels: weeks,
-    datasets: [
-      {
-        label: "Weekly Expenses (₹)",
-        data: weeks.map(w => weekTotals[w]),
-        borderColor: "#ef4444",
-        backgroundColor: "#fee2e2",
-        tension: 0.3,
-        fill: true,
-      },
-    ],
-  };
-  const lineOptions = {
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      title: { display: true, text: "Weekly Expense Trends (Last 8 Weeks)" },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (tickValue: string | number) => `₹${tickValue}`,
-        },
-      },
-    },
-  };
-
-  async function handleAddExpense() {
-    if (!validateForm()) return;
-    if (!user) return;
-    const entry = {
-      uid: user.uid,
-      type: entryType, // 'expense' or 'income'
-      category: form.category,
-      amount: entryType === "expense" ? -Math.abs(Number(form.amount)) : Math.abs(Number(form.amount)),
-      date: form.date,
-      note: form.note,
-      recurring: isRecurring
-        ? {
-            frequency: recurring.frequency,
-            endDate: recurring.endDate || null,
-          }
-        : null,
-      createdAt: new Date().toISOString(),
-    };
-    // Optionally, you can call mutate(undefined, false) for optimistic update if supported
-    mutate();
-    setShowAddModal(false);
-    setForm({ category: "", amount: "", date: "", note: "" });
-    setEntryType("expense");
-    setIsRecurring(false);
-    setRecurring({ frequency: "Monthly", endDate: "" });
-    try {
-      const userTransactionsRef = collection(db, "users", user.uid, "transactions");
-      await addDoc(userTransactionsRef, entry);
-      // Revalidate SWR cache
-      mutate();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      alert("Failed to add entry: " + message);
-    }
-  }
+  // Remove all modal/form state and logic related to adding expenses directly in this file
+  // Instead, use TransactionModal and pass the required props
 
   // Archive all transactions for the current user
   async function archiveAllTransactions() {
@@ -487,8 +327,10 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <div className="text-blue-600 text-lg font-medium">Loading dashboard...</div>
+          <img src="/favicon.ico" alt="Loading" className="w-12 h-12 animate-pulse" />
+          <div className="text-blue-600 text-lg font-medium">
+            <AnimatedLoadingDots text="" />
+          </div>
         </div>
       </div>
     );
@@ -513,157 +355,13 @@ export default function DashboardPage() {
             <Button size="lg" onClick={() => setShowAddModal(true)}>+ Add Expense</Button>
           </div>
           {/* Add Expense Modal */}
-          <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-            <DialogContent className="max-w-md mx-auto">
-              <DialogHeader>
-                <DialogTitle>Add Expense</DialogTitle>
-              </DialogHeader>
-              <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); handleAddExpense(); }}>
-                {/* Entry Type Toggle */}
-                <div className="flex gap-2 mb-2">
-                  <Button type="button" size="sm" variant={entryType === 'expense' ? 'default' : 'outline'} onClick={() => setEntryType('expense')}>Expense</Button>
-                  <Button type="button" size="sm" variant={entryType === 'income' ? 'default' : 'outline'} onClick={() => setEntryType('income')}>Income</Button>
-                </div>
-                {/* Category */}
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <select
-                    id="category"
-                    className="w-full mt-1 border rounded-md p-2 bg-background"
-                    value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    required
-                  >
-                    <option value="" disabled>Select category</option>
-                    {(entryType === 'income' ? incomeCategories : expenseCategories).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                    {customCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  {formErrors.category && <div className="text-red-500 text-xs mt-1">{formErrors.category}</div>}
-                  <div className="mt-2 flex flex-col gap-2">
-                    {showAddCategory ? (
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder="New category"
-                          value={newCategory}
-                          onChange={e => setNewCategory(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button type="button" size="sm" onClick={handleAddCategory} disabled={!newCategory.trim() || expenseCategories.includes(newCategory.trim()) || incomeCategories.includes(newCategory.trim()) || customCategories.includes(newCategory.trim())}>Add</Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => { setShowAddCategory(false); setNewCategory(""); }}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCategory(true)}>+ Add Category</Button>
-                    )}
-                  </div>
-                </div>
-                {/* Amount */}
-                <div>
-                  <Label htmlFor="amount">{entryType === 'income' ? 'Amount (Income)' : 'Amount (Expense)'}</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="0.00"
-                    value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    required
-                  />
-                  {formErrors.amount && <div className="text-red-500 text-xs mt-1">{formErrors.amount}</div>}
-                </div>
-                {/* Date and Quick Select */}
-                <div>
-                  <Label htmlFor="date">Date</Label>
-                  <div className="flex gap-2 mb-2 mt-1">
-                    <button
-                      type="button"
-                      className={`px-3 py-1 rounded-md border text-xs transition-colors ${form.date === today ? "bg-primary/10 text-primary border-primary" : "bg-background border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800"}`}
-                      onClick={() => setForm(f => ({ ...f, date: today }))}
-                    >
-                      Today
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-3 py-1 rounded-md border text-xs transition-colors ${form.date === tomorrow ? "bg-primary/10 text-primary border-primary" : "bg-background border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800"}`}
-                      onClick={() => setForm(f => ({ ...f, date: tomorrow }))}
-                    >
-                      Tomorrow
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-3 py-1 rounded-md border text-xs transition-colors ${form.date === yesterday ? "bg-primary/10 text-primary border-primary" : "bg-background border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800"}`}
-                      onClick={() => setForm(f => ({ ...f, date: yesterday }))}
-                    >
-                      Yesterday
-                    </button>
-                  </div>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={form.date}
-                    onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    required
-                  />
-                  {formErrors.date && <div className="text-red-500 text-xs mt-1">{formErrors.date}</div>}
-                </div>
-                {/* Recurring Option */}
-                <div className="flex items-center gap-2">
-                  <input
-                    id="recurring"
-                    type="checkbox"
-                    checked={isRecurring}
-                    onChange={e => setIsRecurring(e.target.checked)}
-                  />
-                  <Label htmlFor="recurring">Recurring</Label>
-                </div>
-                {isRecurring && (
-                  <div className="flex flex-col gap-2 ml-6">
-                    <div>
-                      <Label htmlFor="frequency">Frequency</Label>
-                      <select
-                        id="frequency"
-                        className="w-full mt-1 border rounded-md p-2 bg-background"
-                        value={recurring.frequency}
-                        onChange={e => setRecurring(r => ({ ...r, frequency: e.target.value }))}
-                      >
-                        <option value="Daily">Daily</option>
-                        <option value="Weekly">Weekly</option>
-                        <option value="Monthly">Monthly</option>
-                        <option value="Yearly">Yearly</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="endDate">End Date <span className="text-muted-foreground">(optional)</span></Label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={recurring.endDate}
-                        onChange={e => setRecurring(r => ({ ...r, endDate: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                )}
-                {/* Note */}
-                <div>
-                  <Label htmlFor="note">Note <span className="text-muted-foreground">(optional)</span></Label>
-                  <textarea
-                    id="note"
-                    className="w-full mt-1 border rounded-md p-2 bg-background"
-                    rows={2}
-                    value={form.note}
-                    onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                  />
-                </div>
-              </form>
-              <DialogFooter className="flex gap-2 justify-end mt-4">
-                <Button variant="outline" onClick={() => setShowAddModal(false)} type="button">Cancel</Button>
-                <Button type="button" onClick={handleAddExpense} disabled={!form.category || !form.amount || !form.date || !!formErrors.amount || !!formErrors.category || !!formErrors.date}>Add</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <TransactionModal
+            open={showAddModal}
+            onOpenChange={setShowAddModal}
+            user={user as User}
+            mutate={mutate}
+            categories={categories}
+          />
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
@@ -672,7 +370,7 @@ export default function DashboardPage() {
                 <CardDescription>This month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-red-500">₹{summary.expenses.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-red-500">₹{transactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + Math.abs(tx.amount), 0).toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -681,7 +379,7 @@ export default function DashboardPage() {
                 <CardDescription>This month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-green-600">₹{summary.income.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-green-600">₹{transactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0).toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -690,7 +388,7 @@ export default function DashboardPage() {
                 <CardDescription>Current</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-blue-600">₹{summary.balance.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-blue-600">₹{transactions.reduce((sum, tx) => sum + tx.amount, 0).toFixed(2)}</div>
               </CardContent>
             </Card>
           </div>
@@ -735,22 +433,92 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="h-64 flex items-center justify-center">
-                {Object.keys(categoryTotals).length > 0 ? (
-                  <Bar data={chartData} options={chartOptions} />
+                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
+                  <Bar data={
+                    {
+                      labels: categories,
+                      datasets: [
+                        {
+                          label: "Expenses (₹)",
+                          data: categories.map(cat => transactions.filter(tx => tx.amount < 0 && tx.category === cat).reduce((sum, tx) => sum + Math.abs(tx.amount), 0)),
+                          backgroundColor: "#ef4444",
+                        },
+                      ],
+                    }
+                  } options={
+                    {
+                      responsive: true,
+                      plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: "Spending by Category (This Month)" },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: (tickValue: string | number) => `₹${tickValue}`,
+                          },
+                        },
+                      },
+                    }
+                  } />
                 ) : (
                   <span className="italic text-muted-foreground">No expenses for this month.</span>
                 )}
               </div>
               <div className="h-64 flex items-center justify-center mt-8">
-                {Object.keys(categoryTotals).length > 0 ? (
-                  <Pie data={pieData} />
+                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
+                  <Pie data={
+                    {
+                      labels: categories,
+                      datasets: [
+                        {
+                          label: "Expenses (₹)",
+                          data: categories.map(cat => transactions.filter(tx => tx.amount < 0 && tx.category === cat).reduce((sum, tx) => sum + Math.abs(tx.amount), 0)),
+                          backgroundColor: [
+                            "#ef4444", "#f59e42", "#fbbf24", "#10b981", "#3b82f6", "#a78bfa", "#f472b6", "#6366f1"
+                          ],
+                        },
+                      ],
+                    }
+                  } />
                 ) : (
                   <span className="italic text-muted-foreground">No category data for this month.</span>
                 )}
               </div>
               <div className="h-64 flex items-center justify-center mt-8">
-                {weeks.some(w => weekTotals[w] > 0) ? (
-                  <Line data={lineData} options={lineOptions} />
+                {transactions.filter(tx => tx.amount < 0).length > 0 ? (
+                  <Line data={
+                    {
+                      labels: transactions.filter(tx => tx.amount < 0).map(tx => new Date(tx.date).toISOString().slice(0, 10)),
+                      datasets: [
+                        {
+                          label: "Weekly Expenses (₹)",
+                          data: transactions.filter(tx => tx.amount < 0).map(tx => Math.abs(tx.amount)),
+                          borderColor: "#ef4444",
+                          backgroundColor: "#fee2e2",
+                          tension: 0.3,
+                          fill: true,
+                        },
+                      ],
+                    }
+                  } options={
+                    {
+                      responsive: true,
+                      plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: "Weekly Expense Trends (Last 8 Weeks)" },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: (tickValue: string | number) => `₹${tickValue}`,
+                          },
+                        },
+                      },
+                    }
+                  } />
                 ) : (
                   <span className="italic text-muted-foreground">No weekly trend data.</span>
                 )}

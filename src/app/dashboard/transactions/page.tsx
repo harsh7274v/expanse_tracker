@@ -16,6 +16,7 @@ import { debounce } from "lodash";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup, GoogleAuthProvider } from "firebase/auth";
+import AnimatedLoadingDots from "@/components/AnimatedLoadingDots";
 
 interface Transaction {
   id: string;
@@ -402,8 +403,10 @@ export default function TransactionsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <div className="text-blue-600 text-lg font-medium">Loading transactions...</div>
+          <img src="/favicon.ico" alt="Loading" className="w-12 h-12 animate-pulse" />
+          <div className="text-blue-600 text-lg font-medium">
+            <AnimatedLoadingDots text="" />
+          </div>
         </div>
       </div>
     );

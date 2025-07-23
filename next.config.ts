@@ -1,20 +1,25 @@
-import type { NextConfig } from "next";
+// import withPWA from 'next-pwa';
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   images: {
-    domains: ["lh3.googleusercontent.com"],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'budeeext.vercel.app',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+    ],
   },
-  /* config options here */
+  experimental: {
+    turbo: false,
+  },
 };
-
-const withPWA = require('next-pwa')({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-});
-
-module.exports = withPWA({
-  ...nextConfig,
-});
 
 export default nextConfig;

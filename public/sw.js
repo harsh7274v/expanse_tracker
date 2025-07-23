@@ -1,1 +1,63 @@
-if(!self.define){let e,s={};const a=(a,n)=>(a=new URL(a+".js",n).href,s[a]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=a,e.onload=s,document.head.appendChild(e)}else e=a,importScripts(a),s()}).then(()=>{let e=s[a];if(!e)throw new Error(`Module ${a} didn’t register its module`);return e}));self.define=(n,c)=>{const i=e||("document"in self?document.currentScript.src:"")||location.href;if(s[i])return;let t={};const r=e=>a(e,i),f={module:{uri:i},exports:t,require:r};s[i]=Promise.all(n.map(e=>f[e]||r(e))).then(e=>(c(...e),t))}}define(["./workbox-4754cb34"],function(e){"use strict";importScripts(),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"4655fbd510d7fd03491f1381516e4556"},{url:"/_next/static/NUErpDBFMS9nXQwhLpEEN/_buildManifest.js",revision:"ddd4c80cbb6fe30e89cd13f6d3f16b03"},{url:"/_next/static/NUErpDBFMS9nXQwhLpEEN/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/30-b3a587bf912e64dd.js",revision:"b3a587bf912e64dd"},{url:"/_next/static/chunks/341.716d46e6e5cb6bdc.js",revision:"716d46e6e5cb6bdc"},{url:"/_next/static/chunks/472.a3826d29d6854395.js",revision:"a3826d29d6854395"},{url:"/_next/static/chunks/4bd1b696-cf72ae8a39fa05aa.js",revision:"cf72ae8a39fa05aa"},{url:"/_next/static/chunks/824-2865c02e209b6ae7.js",revision:"2865c02e209b6ae7"},{url:"/_next/static/chunks/953-df51b7b96efb4b94.js",revision:"df51b7b96efb4b94"},{url:"/_next/static/chunks/964-eda38e26c0391a47.js",revision:"eda38e26c0391a47"},{url:"/_next/static/chunks/ae6eea6a-290e6bcf20f1dcb6.js",revision:"290e6bcf20f1dcb6"},{url:"/_next/static/chunks/app/_not-found/page-bf1f5651e7553784.js",revision:"bf1f5651e7553784"},{url:"/_next/static/chunks/app/dashboard/page-fdf2c97ef3ead456.js",revision:"fdf2c97ef3ead456"},{url:"/_next/static/chunks/app/dashboard/transactions/page-2658a7dc08400827.js",revision:"2658a7dc08400827"},{url:"/_next/static/chunks/app/layout-5ea0d7f317906e81.js",revision:"5ea0d7f317906e81"},{url:"/_next/static/chunks/app/login/page-4451f3fd754d9a12.js",revision:"4451f3fd754d9a12"},{url:"/_next/static/chunks/app/page-4451f3fd754d9a12.js",revision:"4451f3fd754d9a12"},{url:"/_next/static/chunks/bc9e92e6-e0365bf5603ca6f3.js",revision:"e0365bf5603ca6f3"},{url:"/_next/static/chunks/ca377847-5f6f073679959c28.js",revision:"5f6f073679959c28"},{url:"/_next/static/chunks/framework-7c95b8e5103c9e90.js",revision:"7c95b8e5103c9e90"},{url:"/_next/static/chunks/main-app-3c784deaeeda496b.js",revision:"3c784deaeeda496b"},{url:"/_next/static/chunks/main-efe3971db9fbd686.js",revision:"efe3971db9fbd686"},{url:"/_next/static/chunks/pages/_app-663ec5428c344dae.js",revision:"663ec5428c344dae"},{url:"/_next/static/chunks/pages/_error-544778206352ce59.js",revision:"544778206352ce59"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-6325d97008443c31.js",revision:"6325d97008443c31"},{url:"/_next/static/css/5679e28d70ddc910.css",revision:"5679e28d70ddc910"},{url:"/_next/static/media/569ce4b8f30dc480-s.p.woff2",revision:"ef6cefb32024deac234e82f932a95cbd"},{url:"/_next/static/media/747892c23ea88013-s.woff2",revision:"a0761690ccf4441ace5cec893b82d4ab"},{url:"/_next/static/media/8d697b304b401681-s.woff2",revision:"cc728f6c0adb04da0dfcb0fc436a8ae5"},{url:"/_next/static/media/93f479601ee12b01-s.p.woff2",revision:"da83d5f06d825c5ae65b7cca706cb312"},{url:"/_next/static/media/9610d9e46709d722-s.woff2",revision:"7b7c0ef93df188a852344fc272fc096b"},{url:"/_next/static/media/ba015fad6dcf6784-s.woff2",revision:"8ea4f719af3312a055caf09f34c89a77"},{url:"/file.svg",revision:"d09f95206c3fa0bb9bd9fefabfd0ea71"},{url:"/globe.svg",revision:"2aaafa6a49b6563925fe440891e32717"},{url:"/icon-192x192.png",revision:"7245059c4e30bd663489f7f1ed79d11f"},{url:"/icon-512x512.png",revision:"7245059c4e30bd663489f7f1ed79d11f"},{url:"/manifest.json",revision:"3c06bd5dd50bfc3b5bd86958c2b29ca7"},{url:"/next.svg",revision:"8e061864f388b47f33a1c3780831193e"},{url:"/offline.html",revision:"bdaf150f542ee72509ba233be2459c54"},{url:"/vercel.svg",revision:"c0af2f507b369b085b35ef4bbe3bcf1e"},{url:"/window.svg",revision:"a2760511c65806022ad20adf74370ff3"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:s,event:a,state:n})=>s&&"opaqueredirect"===s.type?new Response(s.body,{status:200,statusText:"OK",headers:s.headers}):s}]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:gstatic)\.com\/.*/i,new e.CacheFirst({cacheName:"google-fonts-webfonts",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:googleapis)\.com\/.*/i,new e.StaleWhileRevalidate({cacheName:"google-fonts-stylesheets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:eot|otf|ttc|ttf|woff|woff2|font.css)$/i,new e.StaleWhileRevalidate({cacheName:"static-font-assets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,new e.StaleWhileRevalidate({cacheName:"static-image-assets",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/image\?url=.+$/i,new e.StaleWhileRevalidate({cacheName:"next-image",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp3|wav|ogg)$/i,new e.CacheFirst({cacheName:"static-audio-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp4)$/i,new e.CacheFirst({cacheName:"static-video-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:js)$/i,new e.StaleWhileRevalidate({cacheName:"static-js-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:css|less)$/i,new e.StaleWhileRevalidate({cacheName:"static-style-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/data\/.+\/.+\.json$/i,new e.StaleWhileRevalidate({cacheName:"next-data",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:json|xml|csv)$/i,new e.NetworkFirst({cacheName:"static-data-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;const s=e.pathname;return!s.startsWith("/api/auth/")&&!!s.startsWith("/api/")},new e.NetworkFirst({cacheName:"apis",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:16,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;return!e.pathname.startsWith("/api/")},new e.NetworkFirst({cacheName:"others",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>!(self.origin===e.origin),new e.NetworkFirst({cacheName:"cross-origin",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:3600})]}),"GET")});
+importScripts('https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/idb-keyval-iife.min.js');
+
+const QUEUE_NAME = 'post-requests';
+
+self.addEventListener('fetch', (event) => {
+  if (
+    event.request.method === 'POST' &&
+    event.request.url.includes('/api/') // Adjust this to match your API routes
+  ) {
+    event.respondWith(
+      fetch(event.request.clone()).catch(() => {
+        // If offline, save the request to IndexedDB
+        savePostRequest(event.request.clone());
+        // Register for background sync
+        if ('sync' in self.registration) {
+          self.registration.sync.register('sync-post-requests');
+        }
+        // Return a generic response
+        return new Response(JSON.stringify({ success: false, offline: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+    );
+  }
+});
+
+function savePostRequest(request) {
+  request.clone().json().then((body) => {
+    const data = { url: request.url, body, headers: [...request.headers] };
+    idbKeyval.get(QUEUE_NAME).then((saved = []) => {
+      saved.push(data);
+      idbKeyval.set(QUEUE_NAME, saved);
+    });
+  });
+}
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-post-requests') {
+    event.waitUntil(replayPostRequests());
+  }
+});
+
+async function replayPostRequests() {
+  const saved = (await idbKeyval.get(QUEUE_NAME)) || [];
+  const remaining = [];
+  for (const req of saved) {
+    try {
+      await fetch(req.url, {
+        method: 'POST',
+        headers: req.headers,
+        body: JSON.stringify(req.body),
+      });
+    } catch (err) {
+      // If still offline, keep in queue
+      remaining.push(req);
+    }
+  }
+  if (remaining.length > 0) {
+    await idbKeyval.set(QUEUE_NAME, remaining);
+  } else {
+    await idbKeyval.del(QUEUE_NAME);
+  }
+}

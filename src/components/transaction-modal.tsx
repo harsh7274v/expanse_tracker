@@ -42,6 +42,22 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategory, setNewCategory] = useState("");
 
+  const expenseCategories = [
+    "Food",
+    "Transport",
+    "Shopping",
+    "Bills",
+    "Entertainment",
+    "Other",
+  ];
+  const incomeCategories = [
+    "Salary",
+    "Business",
+    "Investments",
+    "Gifts",
+    "Other Income",
+  ];
+
   // Load custom categories from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("customCategories");
@@ -52,9 +68,10 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
     localStorage.setItem("customCategories", JSON.stringify(customCategories));
   }, [customCategories]);
 
-  // When switching entryType, reset category
+  // When switching entryType, reset category to first default
   useEffect(() => {
-    setForm(f => ({ ...f, category: "" }));
+    const defaultCat = entryType === 'expense' ? expenseCategories[0] : incomeCategories[0];
+    setForm(f => ({ ...f, category: defaultCat }));
   }, [entryType]);
 
   function handleAddCategory() {
@@ -75,27 +92,55 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
     return Object.keys(errors).length === 0;
   }
 
+  function getNextDate(dateStr: string, frequency: string): string {
+    const date = new Date(dateStr);
+    if (frequency === "Daily") date.setDate(date.getDate() + 1);
+    else if (frequency === "Weekly") date.setDate(date.getDate() + 7);
+    else if (frequency === "Monthly") date.setMonth(date.getMonth() + 1);
+    else if (frequency === "Yearly") date.setFullYear(date.getFullYear() + 1);
+    return date.toISOString().slice(0, 10);
+  }
+
   async function handleAddExpense() {
     if (!validateForm()) return;
     if (!user) return;
-    const entry = {
+    const baseEntry = {
       uid: user.uid,
       type: entryType, // 'expense' or 'income'
       category: form.category,
       amount: entryType === "expense" ? -Math.abs(Number(form.amount)) : Math.abs(Number(form.amount)),
-      date: form.date,
       note: form.note,
-      recurring: isRecurring
-        ? {
-            frequency: recurring.frequency,
-            endDate: recurring.endDate || null,
-          }
-        : null,
       createdAt: new Date().toISOString(),
     };
+    let entries = [];
+    if (isRecurring && recurring.endDate && form.date) {
+      // Generate all dates from form.date to recurring.endDate at the selected frequency
+      let currentDate = form.date;
+      const endDate = recurring.endDate;
+      while (currentDate <= endDate) {
+        entries.push({
+          ...baseEntry,
+          date: currentDate,
+          recurring: {
+            frequency: recurring.frequency,
+            endDate: recurring.endDate || null,
+          },
+        });
+        currentDate = getNextDate(currentDate, recurring.frequency);
+      }
+    } else {
+      entries = [{
+        ...baseEntry,
+        date: form.date,
+        recurring: isRecurring ? {
+          frequency: recurring.frequency,
+          endDate: recurring.endDate || null,
+        } : null,
+      }];
+    }
     // Optimistically update SWR cache
     mutate((prev: Transaction[] = []) => [
-      { ...entry, id: "temp-" + Date.now() },
+      ...entries.map((entry, i) => ({ ...entry, id: "temp-" + Date.now() + "-" + i })),
       ...prev,
     ], false);
     onOpenChange(false);
@@ -105,7 +150,9 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
     setRecurring({ frequency: "Monthly", endDate: "" });
     try {
       const userTransactionsRef = collection(db, "users", user.uid, "transactions");
-      await addDoc(userTransactionsRef, entry);
+      for (const entry of entries) {
+        await addDoc(userTransactionsRef, entry);
+      }
       // Revalidate SWR cache
       mutate();
     } catch (err: unknown) {
@@ -151,7 +198,7 @@ export default function TransactionModal({ open, onOpenChange, user, mutate, cat
               required
             >
               <option value="" disabled>Select category</option>
-              {(entryType === 'income' ? categories.filter(Boolean) : categories.filter(Boolean)).map((cat, idx) => (
+              {(entryType === 'income' ? incomeCategories : expenseCategories).map((cat, idx) => (
                 <option key={cat || idx} value={cat}>{cat}</option>
               ))}
               {customCategories.filter(Boolean).map((cat, idx) => (
